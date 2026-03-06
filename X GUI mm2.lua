@@ -1,61 +1,74 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
-local function createOutline(part, color)
-    local outline = Instance.new("SelectionBox")
-    outline.Adornee = part
-    outline.Color3 = color
-    outline.LineThickness = 0.05
-    outline.SurfaceTransparency = 1
-    outline.Parent = part
-    return outline
+local espFolder = Instance.new("Folder", Camera)
+espFolder.Name = "MurderMystery2ESP"
+
+local roleColors = {
+    ["Murderer"] = Color3.fromRGB(255, 0, 0),
+    ["Sheriff"] = Color3.fromRGB(0, 0, 255),
+    ["Innocent"] = Color3.fromRGB(0, 255, 0),
+    ["None"] = Color3.fromRGB(128, 128, 128)
+}
+
+local function getRoleColor(role)
+    return roleColors[role] or roleColors["None"]
 end
 
-local function outlinePlayerCharacter(player, color)
-    if player.Character then
-        for _, part in pairs(player.Character:GetChildren()) do
-            if part:IsA("BasePart") then
-                createOutline(part, color)
-            end
-        end
-    end
+local function createESP(player)
+    local espBox = Instance.new("BoxHandleAdornment")
+    espBox.Adornee = nil
+    espBox.AlwaysOnTop = true
+    espBox.ZIndex = 10
+    espBox.Transparency = 0.5
+    espBox.Size = Vector3.new(4, 6, 4)
+    espBox.Color3 = getRoleColor("None")
+    espBox.Parent = espFolder
+
+    return espBox
 end
 
-local function clearOutlines(player)
-    if player.Character then
-        for _, part in pairs(player.Character:GetChildren()) do
-            if part:IsA("BasePart") then
-                for _, child in pairs(part:GetChildren()) do
-                    if child:IsA("SelectionBox") then
-                        child:Destroy()
-                    end
-                end
-            end
-        end
-    end
-end
+local espBoxes = {}
 
 local function updateESP()
-    local localPlayer = Players.LocalPlayer
-    if not localPlayer then return end
-
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
-            local humanoid = player.Character.Humanoid
-            if humanoid.Health > 0 then
-                local role = player:FindFirstChild("Role") -- Assuming a StringValue named Role exists
-                if role and role.Value == "Murderer" then
-                    outlinePlayerCharacter(player, Color3.new(1, 0, 0)) -- Red for Murderer
-                elseif role and role.Value == "Sheriff" then
-                    outlinePlayerCharacter(player, Color3.new(0, 0, 1)) -- Blue for Sheriff
-                else
-                    outlinePlayerCharacter(player, Color3.new(0, 1, 0)) -- Green for Innocents
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            if not espBoxes[player] then
+                espBoxes[player] = createESP(player)
+            end
+            local espBox = espBoxes[player]
+            espBox.Adornee = hrp
+
+            local role = "None"
+            local leaderstats = player:FindFirstChild("leaderstats")
+            if leaderstats then
+                local roleStat = leaderstats:FindFirstChild("Role")
+                if roleStat and roleStat:IsA("StringValue") then
+                    role = roleStat.Value
                 end
-            else
-                clearOutlines(player)
+            end
+            espBox.Color3 = getRoleColor(role)
+            espBox.Transparency = 0.5
+            espBox.Size = Vector3.new(4, 6, 4)
+        else
+            if espBoxes[player] then
+                espBoxes[player]:Destroy()
+                espBoxes[player] = nil
             end
         end
     end
 end
 
-RunService.Heartbeat:Connect(updateESP)
+Players.PlayerRemoving:Connect(function(player)
+    if espBoxes[player] then
+        espBoxes[player]:Destroy()
+        espBoxes[player] = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    updateESP()
+end)
